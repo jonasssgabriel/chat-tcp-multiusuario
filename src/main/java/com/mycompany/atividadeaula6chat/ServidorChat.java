@@ -18,7 +18,7 @@ import java.util.concurrent.Executors;
  *
  * REGIAO CRITICA: o mapa "usuarios" guarda apelido -> saida (PrintWriter) de
  * cada cliente conectado. Ele fica em memoria aqui no servidor e e lido e
- * escrito por VARIAS threads ao mesmo tempo (uma ClienteHandler por cliente
+ * escrito por VARIAS threads ao mesmo tempo (uma TarefaCliente por cliente
  * conectado) -- exatamente a situacao que a Aula 3 chamou de Regiao Critica.
  * Por isso NENHUM metodo mexe em "usuarios" direto: tudo passa por um dos
  * metodos synchronized abaixo, que garantem exclusao mutua (so uma thread
@@ -26,7 +26,7 @@ import java.util.concurrent.Executors;
  *
  * THREAD POOL: o enunciado pede "atender varios clientes ao mesmo tempo
  * usando um pool de threads" (igual a Aula 3, Coringa 4). Cada cliente que
- * conecta vira uma tarefa (ClienteHandler) que o pool executa numa thread
+ * conecta vira uma tarefa (TarefaCliente) que o pool executa numa thread
  * livre -- assim o servidor nao trava esperando um cliente digitar.
  */
 public class ServidorChat {
@@ -40,10 +40,10 @@ public class ServidorChat {
         System.out.println("Servidor de chat rodando na porta 9999...");
 
         // Servidor iterativo "infinito": nunca para de aceitar conexoes novas.
-        // A saida ou queda de UM cliente (ClienteHandler) nao afeta este laco.
+        // A saida ou queda de UM cliente (TarefaCliente) nao afeta este laco.
         while (true) {
             Socket cliente = servidor.accept();          // bloqueia ate alguem conectar
-            pool.execute(new ClienteHandler(cliente));    // entrega pro pool e volta direto pro accept()
+            pool.execute(new TarefaCliente(cliente));    // entrega pro pool e volta direto pro accept()
         }
     }
 

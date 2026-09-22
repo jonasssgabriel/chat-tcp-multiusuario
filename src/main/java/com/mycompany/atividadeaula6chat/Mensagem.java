@@ -17,7 +17,7 @@ import com.google.gson.Gson;
  *
  * TIPOS DE MENSAGEM (campo "tipo"):
  *   ENTRAR    - nao usamos como mensagem separada: o apelido e a 1a linha
- *               bruta que o cliente manda ao conectar (ver ClienteHandler).
+ *               bruta que o cliente manda ao conectar (ver TarefaCliente).
  *   BROADCAST - mensagem para todo mundo que esta conectado.
  *   PRIVADA   - mensagem so para o apelido indicado em "destino".
  *   LISTAR    - pedido do cliente para saber quem esta conectado agora.

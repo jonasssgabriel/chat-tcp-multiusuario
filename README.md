@@ -8,7 +8,7 @@ Chat com arquitetura cliente-servidor centralizada, usando Socket TCP em Java.
 |---|---|
 | `Mensagem.java` | Protocolo do chat (JSON via Gson): define os tipos de mensagem trocados entre cliente e servidor |
 | `ServidorChat.java` | `main` do servidor: `ServerSocket` na porta 9999 + pool de threads (`ExecutorService`) + lista de usuários conectados (Região Crítica sincronizada) |
-| `ClienteHandler.java` | Tarefa (`Runnable`) executada numa thread do pool para cada cliente conectado |
+| `TarefaCliente.java` | Tarefa (`Runnable`) executada numa thread do pool para cada cliente conectado |
 | `TelaChat.java` | `main` do cliente: interface Swing (JFrame) com thread separada para receber mensagens sem travar a digitação |
 
 ## Protocolo

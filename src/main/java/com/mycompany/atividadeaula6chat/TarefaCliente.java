@@ -20,13 +20,13 @@ import java.net.Socket;
  * clientes ao mesmo tempo: enquanto esta thread espera o cliente X digitar
  * algo, outra thread do pool esta livre pra atender o cliente Y.
  */
-public class ClienteHandler implements Runnable {
+public class TarefaCliente implements Runnable {
 
     private final Socket socket;
     private String apelido;
     private boolean registrado = false; // so vira true APOS passar pela validacao de apelido
 
-    public ClienteHandler(Socket socket) {
+    public TarefaCliente(Socket socket) {
         this.socket = socket;
     }
 
@@ -65,6 +65,11 @@ public class ClienteHandler implements Runnable {
                     case "PRIVADA":
                         // "Enviar mensagem privada para um usuario especifico"
                         ServidorChat.enviarPrivada(msg);
+                        // Sem isso, quem manda a privada nunca veria a propria
+                        // mensagem no proprio chat (diferente do BROADCAST, que
+                        // ja volta pra todo mundo -- inclusive quem mandou --
+                        // porque broadcast() percorre TODOS os usuarios).
+                        saida.println(msg.paraLinha());
                         break;
                     case "LISTAR":
                         // "Ver a lista dos usuarios logados no momento"

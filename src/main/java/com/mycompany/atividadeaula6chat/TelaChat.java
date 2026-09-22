@@ -36,7 +36,7 @@ import javax.swing.SwingUtilities;
  *    executar.
  *
  * 4) A Região Crítica (a lista de usuários conectados) fica no SERVIDOR,
- *    não aqui -- ver ServidorChat.java e ClienteHandler.java.
+ *    não aqui -- ver ServidorChat.java e TarefaCliente.java.
  *
  * @author jonas
  */
@@ -201,7 +201,7 @@ public class TelaChat extends javax.swing.JFrame {
             saida = new PrintWriter(socket.getOutputStream(), true);
             BufferedReader entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-            saida.println(apelido); // 1a linha da conexao = apelido (ver ClienteHandler)
+            saida.println(apelido); // 1a linha da conexao = apelido (ver TarefaCliente)
 
             // Thread separada SO para ficar recebendo mensagens do servidor,
             // pra nao travar a tela enquanto o usuario digita (ver o
