@@ -24,6 +24,10 @@ import com.google.gson.Gson;
  *   SAIR      - aviso de que o cliente vai desconectar.
  *   RESPOSTA  - o servidor usa para responder ao LISTAR (traz "lista").
  *   ERRO      - o servidor usa quando o apelido e invalido/repetido.
+ *   ARQUIVO   - envio de arquivo para um apelido especifico (bonus da
+ *               atividade). Usa a MESMA rota da PRIVADA no servidor (ver
+ *               ServidorChat.enviarPrivada): o servidor so repassa, nao
+ *               guarda o arquivo em disco em nenhum momento.
  *
  * Campos que cada tipo usa:
  *   ENTRAR    -> so a linha crua com o apelido (nao e um Mensagem)
@@ -33,6 +37,7 @@ import com.google.gson.Gson;
  *   SAIR      -> remetente
  *   RESPOSTA  -> lista (a lista de apelidos conectados)
  *   ERRO      -> texto (a mensagem de erro)
+ *   ARQUIVO   -> remetente, destino, nomeArquivo, dadosArquivo
  */
 public class Mensagem {
 
@@ -41,6 +46,14 @@ public class Mensagem {
     String destino;
     String texto;
     List<String> lista;
+
+    // Campos usados so pelo tipo ARQUIVO: o nome original do arquivo e o
+    // conteudo dele inteiro convertido pra texto em Base64. Base64 existe
+    // justamente pra isso -- transformar bytes quaisquer (um PDF, uma
+    // imagem) numa string sem quebra de linha, que cabe numa unica linha
+    // do protocolo (tudo aqui viaja como texto, readLine() por readLine()).
+    String nomeArquivo;
+    String dadosArquivo;
 
     // Construtor vazio: o Gson PRECISA dele para reconstruir o objeto a
     // partir do JSON (fromLinha). Sem isso o desserializador nao funciona.
@@ -52,6 +65,14 @@ public class Mensagem {
         this.remetente = remetente;
         this.destino = destino;
         this.texto = texto;
+    }
+
+    // Construtor usado so para montar uma mensagem do tipo ARQUIVO.
+    public static Mensagem novoArquivo(String remetente, String destino, String nomeArquivo, String dadosArquivo) {
+        Mensagem msg = new Mensagem("ARQUIVO", remetente, destino, null);
+        msg.nomeArquivo = nomeArquivo;
+        msg.dadosArquivo = dadosArquivo;
+        return msg;
     }
 
     // Objeto -> texto (uma linha JSON), pronto pra mandar no println() do socket.

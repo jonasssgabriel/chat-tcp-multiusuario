@@ -86,6 +86,10 @@ public class ServidorChat {
         }
     }
 
+    // Repassa a mensagem so pro apelido em msg.destino. Usada tanto pelo tipo
+    // PRIVADA (texto) quanto pelo tipo ARQUIVO (bonus): pro servidor nao faz
+    // diferenca o que tem dentro de "msg" -- ele so olha o destino e repassa
+    // o JSON inteiro pra frente, sem nunca salvar nada em disco.
     static synchronized void enviarPrivada(Mensagem msg) {
         PrintWriter saida = usuarios.get(msg.destino);
         if (saida != null) {

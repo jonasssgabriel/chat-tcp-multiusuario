@@ -1,10 +1,15 @@
 package com.mycompany.atividadeaula6chat;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.util.Base64;
+import javax.swing.JFileChooser;
 import javax.swing.SwingUtilities;
 
 /**
@@ -78,6 +83,7 @@ public class TelaChat extends javax.swing.JFrame {
         btnTodos = new javax.swing.JButton();
         btnPrivada = new javax.swing.JButton();
         btnListar = new javax.swing.JButton();
+        btnArquivo = new javax.swing.JButton();
         btnSair = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
@@ -129,6 +135,10 @@ public class TelaChat extends javax.swing.JFrame {
         btnListar.addActionListener(this::btnListarActionPerformed);
         painelBotoes.add(btnListar);
 
+        btnArquivo.setText("Enviar Arquivo");
+        btnArquivo.addActionListener(this::btnArquivoActionPerformed);
+        painelBotoes.add(btnArquivo);
+
         btnSair.setText("Sair");
         btnSair.addActionListener(this::btnSairActionPerformed);
         painelBotoes.add(btnSair);
@@ -161,6 +171,10 @@ public class TelaChat extends javax.swing.JFrame {
         listar();
     }//GEN-LAST:event_btnListarActionPerformed
 
+    private void btnArquivoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnArquivoActionPerformed
+        enviarArquivo();
+    }//GEN-LAST:event_btnArquivoActionPerformed
+
     private void btnSairActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnSairActionPerformed
         sair();
     }//GEN-LAST:event_btnSairActionPerformed
@@ -182,6 +196,7 @@ public class TelaChat extends javax.swing.JFrame {
         btnTodos.setEnabled(conectado);
         btnPrivada.setEnabled(conectado);
         btnListar.setEnabled(conectado);
+        btnArquivo.setEnabled(conectado);
         btnSair.setEnabled(conectado);
     }
 
@@ -244,7 +259,36 @@ public class TelaChat extends javax.swing.JFrame {
         if ("PRIVADA".equals(msg.tipo)) {
             return "(privado) " + msg.remetente + ": " + msg.texto;
         }
+        if ("ARQUIVO".equals(msg.tipo)) {
+            return salvarArquivoRecebido(msg);
+        }
         return msg.remetente + ": " + msg.texto;
+    }
+
+    /**
+     * Requisito bonus: "transferencia direta de arquivo entre clientes".
+     * Decodifica o Base64 que veio em msg.dadosArquivo e grava o arquivo na
+     * pasta "arquivos_recebidos" (criada do lado de quem recebe, ao lado do
+     * projeto). Roda na THREAD DE LEITURA (nao na EDT), mas escrever em
+     * disco nao mexe em nenhum componente Swing, entao nao precisa de
+     * invokeLater aqui -- so o texto que aparece no chat que precisa.
+     */
+    private String salvarArquivoRecebido(Mensagem msg) {
+        try {
+            byte[] dados = Base64.getDecoder().decode(msg.dadosArquivo);
+            File pasta = new File("arquivos_recebidos");
+            if (!pasta.exists()) {
+                pasta.mkdirs();
+            }
+            File destino = new File(pasta, msg.remetente + "_" + msg.nomeArquivo);
+            try (FileOutputStream fos = new FileOutputStream(destino)) {
+                fos.write(dados);
+            }
+            return "[arquivo] " + msg.remetente + " enviou \"" + msg.nomeArquivo
+                    + "\" -> salvo em " + destino.getPath();
+        } catch (IOException | IllegalArgumentException ex) {
+            return "[arquivo] Erro ao receber arquivo de " + msg.remetente + ": " + ex.getMessage();
+        }
     }
 
     /** Requisito: "Enviar mensagem para todos os usuarios conectados". */
@@ -267,6 +311,36 @@ public class TelaChat extends javax.swing.JFrame {
         }
         saida.println(new Mensagem("PRIVADA", apelido, destino, texto).paraLinha());
         tfMensagem.setText("");
+    }
+
+    /**
+     * Requisito bonus (+1,0): "transferencia direta de arquivo entre
+     * clientes". Reaproveita a MESMA rota da mensagem privada (ver
+     * Mensagem.java e ServidorChat.enviarPrivada) -- so troca o "texto" por
+     * um arquivo inteiro convertido em Base64.
+     */
+    private void enviarArquivo() {
+        String destino = tfDestino.getText().trim();
+        if (destino.isEmpty()) {
+            javax.swing.JOptionPane.showMessageDialog(this, "Preencha o destino (apelido de quem vai receber).");
+            return;
+        }
+        JFileChooser seletor = new JFileChooser();
+        int escolha = seletor.showOpenDialog(this);
+        if (escolha != JFileChooser.APPROVE_OPTION) {
+            return; // usuario cancelou
+        }
+        File arquivo = seletor.getSelectedFile();
+        try {
+            // Le o arquivo inteiro como bytes e transforma em texto Base64,
+            // porque o protocolo so manda TEXTO (uma linha por println/readLine).
+            byte[] dados = Files.readAllBytes(arquivo.toPath());
+            String base64 = Base64.getEncoder().encodeToString(dados);
+            saida.println(Mensagem.novoArquivo(apelido, destino, arquivo.getName(), base64).paraLinha());
+            log("Voce enviou o arquivo \"" + arquivo.getName() + "\" para " + destino + ".");
+        } catch (IOException ex) {
+            javax.swing.JOptionPane.showMessageDialog(this, "Nao foi possivel ler o arquivo: " + ex.getMessage());
+        }
     }
 
     /** Requisito: "Ver a lista dos usuarios logados no momento". */
@@ -315,6 +389,7 @@ public class TelaChat extends javax.swing.JFrame {
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JButton btnArquivo;
     private javax.swing.JButton btnConectar;
     private javax.swing.JButton btnListar;
     private javax.swing.JButton btnPrivada;

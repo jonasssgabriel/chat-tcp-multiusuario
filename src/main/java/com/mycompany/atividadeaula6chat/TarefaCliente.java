@@ -74,6 +74,14 @@ public class TarefaCliente implements Runnable {
                         // porque broadcast() percorre TODOS os usuarios).
                         saida.println(msg.paraLinha());
                         break;
+                    case "ARQUIVO":
+                        // Bonus: transferencia de arquivo. Usa a MESMA rota
+                        // da PRIVADA (so troca "texto" por "nomeArquivo" +
+                        // "dadosArquivo" em Base64) -- o servidor so repassa
+                        // pro destino, nunca grava o arquivo em disco.
+                        ServidorChat.enviarPrivada(msg);
+                        saida.println(msg.paraLinha()); // confirma pro remetente que foi enviado
+                        break;
                     case "LISTAR":
                         // "Ver a lista dos usuarios logados no momento"
                         Mensagem resp = new Mensagem("RESPOSTA", "servidor", apelido, null);

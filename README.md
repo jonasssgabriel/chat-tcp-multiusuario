@@ -21,6 +21,7 @@ Cada linha trocada pelo socket é um objeto `Mensagem` serializado em JSON. Camp
 - `SAIR` — avisa que vai desconectar
 - `RESPOSTA` — o servidor usa para responder o `LISTAR` (traz o campo `lista`)
 - `ERRO` — o servidor usa quando o apelido é inválido ou já está em uso
+- `ARQUIVO` — envio de arquivo para um apelido específico (bônus, +1,0). Usa a mesma rota da `PRIVADA` no servidor: o arquivo vai em Base64 nos campos `nomeArquivo` e `dadosArquivo`, o servidor só repassa (não grava nada em disco), e quem recebe salva automaticamente na pasta `arquivos_recebidos/`.
 
 A primeira linha enviada pelo cliente ao conectar é só o apelido (texto puro, sem JSON).
 
@@ -35,7 +36,8 @@ Exemplo de mensagem privada:
 2. Deixe o Maven baixar o `gson` (precisa de internet na primeira vez).
 3. Rode `ServidorChat.java` (botão direito → Run File).
 4. Rode `TelaChat.java` duas ou mais vezes (uma janela por usuário), cada uma com um apelido diferente.
-5. Em cada janela: digite o apelido → Conectar. Depois use os campos e botões (Enviar Todos, Enviar Privada, Listar, Sair).
+5. Em cada janela: digite o apelido → Conectar. Depois use os campos e botões (Enviar Todos, Enviar Privada, Listar, Enviar Arquivo, Sair).
+6. Para enviar arquivo: preencha o destino, clique em "Enviar Arquivo" e escolha o arquivo na janela que abre. Quem recebe acha o arquivo salvo na pasta `arquivos_recebidos/` (criada automaticamente do lado de quem recebe).
 
 ## Teste de concorrência
 
