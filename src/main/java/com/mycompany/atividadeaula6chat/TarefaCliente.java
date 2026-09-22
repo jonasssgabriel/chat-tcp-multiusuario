@@ -39,13 +39,16 @@ public class TarefaCliente implements Runnable {
             // Passo 1: a 1a linha que o cliente manda ao conectar e o apelido
             // (texto puro, nao e um Mensagem/JSON -- e so o nome mesmo).
             apelido = entrada.readLine();
-            if (apelido == null || apelido.isBlank() || ServidorChat.existeApelido(apelido)) {
+            // registrarSeLivre faz o "checa + grava" numa unica chamada
+            // synchronized -- evita que dois clientes conectando com o MESMO
+            // apelido ao mesmo tempo passem os dois pela validacao (ver o
+            // comentario detalhado em ServidorChat.registrarSeLivre).
+            if (apelido == null || apelido.isBlank() || !ServidorChat.registrarSeLivre(apelido, saida)) {
                 // Requisito: "nao pode repetir apelido de quem ja esta logado".
                 saida.println(new Mensagem("ERRO", "servidor", null, "Apelido invalido ou ja em uso").paraLinha());
                 socket.close();
                 return;
             }
-            ServidorChat.registrar(apelido, saida);
             registrado = true; // so a partir daqui esse apelido "existe" de verdade pro resto do servidor
             ServidorChat.broadcast(new Mensagem("BROADCAST", "servidor", null, apelido + " entrou no chat"));
 

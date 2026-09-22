@@ -49,12 +49,25 @@ public class ServidorChat {
 
     // ---- Os metodos abaixo sao a unica porta de entrada pra Regiao Critica ----
 
-    static synchronized boolean existeApelido(String apelido) {
-        return usuarios.containsKey(apelido);
-    }
-
-    static synchronized void registrar(String apelido, PrintWriter saida) {
+    /**
+     * Checa se o apelido esta livre e, se estiver, ja registra na mesma
+     * chamada synchronized. Devolve true se conseguiu registrar.
+     *
+     * IMPORTANTE: por que isso nao pode ser dois metodos synchronized
+     * separados (um "existeApelido" e um "registrar" chamados em sequencia)?
+     * Porque entre o fim do primeiro metodo e o inicio do segundo, o lock e
+     * liberado -- outra thread pode entrar no meio e registrar o MESMO
+     * apelido antes da primeira terminar. E um "check-then-act" classico:
+     * as duas threads podem ver o apelido livre ao mesmo tempo e as duas
+     * registrarem, uma sobrescrevendo a outra no mapa. A solucao e fazer
+     * o check e o registro dentro do MESMO bloco synchronized, como abaixo.
+     */
+    static synchronized boolean registrarSeLivre(String apelido, PrintWriter saida) {
+        if (usuarios.containsKey(apelido)) {
+            return false;
+        }
         usuarios.put(apelido, saida);
+        return true;
     }
 
     static synchronized void remover(String apelido) {
