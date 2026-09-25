@@ -12,22 +12,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * SERVIDOR central do chat TCP (arquitetura cliente-servidor centralizada,
- * como pede o enunciado: todo mundo fala com o servidor, ninguem conhece o
- * Socket dos outros clientes diretamente).
- *
- * REGIAO CRITICA: o mapa "usuarios" guarda apelido -> saida (PrintWriter) de
- * cada cliente conectado. Ele fica em memoria aqui no servidor e e lido e
- * escrito por VARIAS threads ao mesmo tempo (uma TarefaCliente por cliente
- * conectado) -- exatamente a situacao que a Aula 3 chamou de Regiao Critica.
- * Por isso NENHUM metodo mexe em "usuarios" direto: tudo passa por um dos
- * metodos synchronized abaixo, que garantem exclusao mutua (so uma thread
- * por vez mexendo no mapa).
- *
- * THREAD POOL: o enunciado pede "atender varios clientes ao mesmo tempo
- * usando um pool de threads" (igual a Aula 3, Coringa 4). Cada cliente que
- * conecta vira uma tarefa (TarefaCliente) que o pool executa numa thread
- * livre -- assim o servidor nao trava esperando um cliente digitar.
+ * Servidor central do chat TCP: ServerSocket + ThreadPool (uma TarefaCliente
+ * por conexao) + mapa de usuarios conectados. O mapa e a Regiao Critica
+ * (Aula 3) -- so acessado pelos metodos synchronized abaixo.
  */
 public class ServidorChat {
 
@@ -49,19 +36,9 @@ public class ServidorChat {
 
     // ---- Os metodos abaixo sao a unica porta de entrada pra Regiao Critica ----
 
-    /**
-     * Checa se o apelido esta livre e, se estiver, ja registra na mesma
-     * chamada synchronized. Devolve true se conseguiu registrar.
-     *
-     * IMPORTANTE: por que isso nao pode ser dois metodos synchronized
-     * separados (um "existeApelido" e um "registrar" chamados em sequencia)?
-     * Porque entre o fim do primeiro metodo e o inicio do segundo, o lock e
-     * liberado -- outra thread pode entrar no meio e registrar o MESMO
-     * apelido antes da primeira terminar. E um "check-then-act" classico:
-     * as duas threads podem ver o apelido livre ao mesmo tempo e as duas
-     * registrarem, uma sobrescrevendo a outra no mapa. A solucao e fazer
-     * o check e o registro dentro do MESMO bloco synchronized, como abaixo.
-     */
+    // Checa e registra o apelido na MESMA chamada synchronized (check-then-act
+    // atomico) -- em dois metodos separados, duas threads poderiam passar
+    // pela checagem antes de qualquer uma registrar.
     static synchronized boolean registrarSeLivre(String apelido, PrintWriter saida) {
         if (usuarios.containsKey(apelido)) {
             return false;
@@ -86,10 +63,10 @@ public class ServidorChat {
         }
     }
 
-    // Repassa a mensagem so pro apelido em msg.destino. Usada tanto pelo tipo
-    // PRIVADA (texto) quanto pelo tipo ARQUIVO (bonus): pro servidor nao faz
-    // diferenca o que tem dentro de "msg" -- ele so olha o destino e repassa
-    // o JSON inteiro pra frente, sem nunca salvar nada em disco.
+    // Repassa a mensagem so pro apelido em msg.destino. Usada pela PRIVADA e
+    // pelo convite ARQUIVO (bonus) -- neste ultimo caso so o convite (ip e
+    // porta) passa por aqui, nunca o arquivo: essa e a "intermediacao da
+    // conexao" que o enunciado pede, sem o servidor tocar no arquivo.
     static synchronized void enviarPrivada(Mensagem msg) {
         PrintWriter saida = usuarios.get(msg.destino);
         if (saida != null) {

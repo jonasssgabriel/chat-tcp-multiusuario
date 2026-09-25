@@ -6,42 +6,18 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.file.Files;
-import java.util.Base64;
 import javax.swing.JFileChooser;
+import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 
 /**
- * ============================================================================
- * TELA (cliente) do chat TCP -- JFrame Form, igual as telas da aula
- * (TelaHello, TelaBusca, TelaCliente): você pode abrir esta classe no
- * NetBeans e usar a aba "Design" pra mexer no layout, igual sempre fez.
- * ============================================================================
- *
- * COMO O CHAT FUNCIONA (pra explicar na defesa):
- *
- * 1) PROTOCOLO -- ver Mensagem.java. Cada linha que passa pelo socket é um
- *    JSON {"tipo":..., "remetente":..., "destino":..., "texto":...}.
- *
- * 2) POR QUE UMA THREAD SEPARADA PRA RECEBER (ver conectar() e
- *    receberMensagens()) -- o requisito da atividade diz "o cliente deve
- *    continuar recebendo mensagens enquanto o usuário digita". O método
- *    entrada.readLine() BLOQUEIA esperando o servidor mandar algo. Se isso
- *    rodasse na thread da tela (a mesma que desenha os botões), a janela
- *    inteira travaria toda vez que não tivesse mensagem chegando. Por isso a
- *    leitura roda numa Thread por conta própria, do mesmo jeito do Coringa
- *    10 (SwingWorker/Thread + invokeLater) da Aula 1.
- *
- * 3) SwingUtilities.invokeLater -- componentes Swing (JTextArea etc.) só
- *    podem ser alterados pela thread da interface gráfica (a "Event
- *    Dispatch Thread"). Como a mensagem chega numa thread diferente (a de
- *    leitura), toda atualização da tela precisa ser "empacotada" com
- *    invokeLater, que entrega esse pedaço de código pra thread certa
- *    executar.
- *
- * 4) A Região Crítica (a lista de usuários conectados) fica no SERVIDOR,
- *    não aqui -- ver ServidorChat.java e TarefaCliente.java.
+ * Tela (cliente) do chat TCP -- JFrame Form. Le mensagens numa Thread
+ * separada (readLine() bloqueia) pra nao travar a digitacao, e usa
+ * SwingUtilities.invokeLater pra atualizar a JTextArea a partir dela.
+ * A Regiao Critica (lista de usuarios) fica no servidor, nao aqui.
  *
  * @author jonas
  */
@@ -218,10 +194,9 @@ public class TelaChat extends javax.swing.JFrame {
 
             saida.println(apelido); // 1a linha da conexao = apelido (ver TarefaCliente)
 
-            // Thread separada SO para ficar recebendo mensagens do servidor,
-            // pra nao travar a tela enquanto o usuario digita (ver o
-            // comentario da classe, no topo do arquivo).
-            new Thread(() -> receberMensagens(entrada)).start();
+            new Thread(() -> receberMensagens(entrada)).start(); // nao travar a tela
+
+
 
             atualizarEstadoConectado(true);
             log("Conectado como " + apelido + ". Use os botoes abaixo.");
@@ -236,10 +211,16 @@ public class TelaChat extends javax.swing.JFrame {
             String linha;
             while ((linha = entrada.readLine()) != null) {
                 Mensagem msg = Mensagem.fromLinha(linha);
+
+                // ARQUIVO e so o convite; dialogo+download vao pra thread
+                // propria pra nao travar o recebimento de outras mensagens.
+                if ("ARQUIVO".equals(msg.tipo)) {
+                    new Thread(() -> receberOfertaArquivo(msg)).start();
+                    continue;
+                }
+
                 String texto = formatar(msg);
-                // Aqui e onde o invokeLater entra: "texto" foi montado nesta
-                // thread, mas quem escreve na JTextArea tem que ser a EDT.
-                SwingUtilities.invokeLater(() -> log(texto));
+                SwingUtilities.invokeLater(() -> log(texto)); // so a EDT mexe na JTextArea
             }
         } catch (IOException ex) {
             SwingUtilities.invokeLater(() -> {
@@ -259,35 +240,33 @@ public class TelaChat extends javax.swing.JFrame {
         if ("PRIVADA".equals(msg.tipo)) {
             return "(privado) " + msg.remetente + ": " + msg.texto;
         }
-        if ("ARQUIVO".equals(msg.tipo)) {
-            return salvarArquivoRecebido(msg);
-        }
         return msg.remetente + ": " + msg.texto;
     }
 
-    /**
-     * Requisito bonus: "transferencia direta de arquivo entre clientes".
-     * Decodifica o Base64 que veio em msg.dadosArquivo e grava o arquivo na
-     * pasta "arquivos_recebidos" (criada do lado de quem recebe, ao lado do
-     * projeto). Roda na THREAD DE LEITURA (nao na EDT), mas escrever em
-     * disco nao mexe em nenhum componente Swing, entao nao precisa de
-     * invokeLater aqui -- so o texto que aparece no chat que precisa.
-     */
-    private String salvarArquivoRecebido(Mensagem msg) {
-        try {
-            byte[] dados = Base64.getDecoder().decode(msg.dadosArquivo);
+    // Bonus (+1,0): confirma com o usuario e baixa por conexao DIRETA com
+    // quem enviou (fora do ServidorChat). Roda em thread propria.
+    private void receberOfertaArquivo(Mensagem oferta) {
+        int resposta = JOptionPane.showConfirmDialog(this,
+                oferta.remetente + " quer te enviar o arquivo \"" + oferta.nomeArquivo
+                + "\" (" + oferta.tamanhoArquivo + " bytes). Aceitar?",
+                "Arquivo recebido", JOptionPane.YES_NO_OPTION);
+        if (resposta != JOptionPane.YES_OPTION) {
+            SwingUtilities.invokeLater(() -> log("Voce recusou o arquivo de " + oferta.remetente + "."));
+            return;
+        }
+        try (Socket direto = new Socket(oferta.ip, oferta.porta)) { // conexao direta, fora do ServidorChat
             File pasta = new File("arquivos_recebidos");
             if (!pasta.exists()) {
                 pasta.mkdirs();
             }
-            File destino = new File(pasta, msg.remetente + "_" + msg.nomeArquivo);
-            try (FileOutputStream fos = new FileOutputStream(destino)) {
-                fos.write(dados);
+            File destinoArquivo = new File(pasta, oferta.remetente + "_" + oferta.nomeArquivo);
+            try (FileOutputStream saidaArquivo = new FileOutputStream(destinoArquivo)) {
+                direto.getInputStream().transferTo(saidaArquivo);
             }
-            return "[arquivo] " + msg.remetente + " enviou \"" + msg.nomeArquivo
-                    + "\" -> salvo em " + destino.getPath();
-        } catch (IOException | IllegalArgumentException ex) {
-            return "[arquivo] Erro ao receber arquivo de " + msg.remetente + ": " + ex.getMessage();
+            SwingUtilities.invokeLater(() -> log("[arquivo] Recebido diretamente de " + oferta.remetente
+                    + ": " + destinoArquivo.getPath()));
+        } catch (IOException ex) {
+            SwingUtilities.invokeLater(() -> log("[arquivo] Erro ao baixar de " + oferta.remetente + ": " + ex.getMessage()));
         }
     }
 
@@ -313,16 +292,12 @@ public class TelaChat extends javax.swing.JFrame {
         tfMensagem.setText("");
     }
 
-    /**
-     * Requisito bonus (+1,0): "transferencia direta de arquivo entre
-     * clientes". Reaproveita a MESMA rota da mensagem privada (ver
-     * Mensagem.java e ServidorChat.enviarPrivada) -- so troca o "texto" por
-     * um arquivo inteiro convertido em Base64.
-     */
+    // Bonus (+1,0): abre um ServerSocket proprio, manda so o convite
+    // (ip/porta/nome/tamanho) via ServidorChat, e espera a conexao direta.
     private void enviarArquivo() {
         String destino = tfDestino.getText().trim();
         if (destino.isEmpty()) {
-            javax.swing.JOptionPane.showMessageDialog(this, "Preencha o destino (apelido de quem vai receber).");
+            JOptionPane.showMessageDialog(this, "Preencha o destino (apelido de quem vai receber).");
             return;
         }
         JFileChooser seletor = new JFileChooser();
@@ -332,14 +307,33 @@ public class TelaChat extends javax.swing.JFrame {
         }
         File arquivo = seletor.getSelectedFile();
         try {
-            // Le o arquivo inteiro como bytes e transforma em texto Base64,
-            // porque o protocolo so manda TEXTO (uma linha por println/readLine).
-            byte[] dados = Files.readAllBytes(arquivo.toPath());
-            String base64 = Base64.getEncoder().encodeToString(dados);
-            saida.println(Mensagem.novoArquivo(apelido, destino, arquivo.getName(), base64).paraLinha());
-            log("Voce enviou o arquivo \"" + arquivo.getName() + "\" para " + destino + ".");
+            ServerSocket servidorArquivo = new ServerSocket(0); // 0 = porta livre escolhida pelo SO
+            servidorArquivo.setSoTimeout(30000); // desiste se ninguem conectar em 30s
+            String meuIp = socket.getLocalAddress().getHostAddress(); // ip usado na conexao com o chat
+            int minhaPorta = servidorArquivo.getLocalPort();
+
+            Mensagem convite = Mensagem.novaOfertaArquivo(apelido, destino, arquivo.getName(),
+                    arquivo.length(), meuIp, minhaPorta);
+            saida.println(convite.paraLinha()); // so o convite passa pelo servidor do chat
+
+            log("Convite enviado para " + destino + ". Aguardando conexao direta para enviar \""
+                    + arquivo.getName() + "\"...");
+            new Thread(() -> aguardarConexaoDireta(servidorArquivo, arquivo, destino)).start();
         } catch (IOException ex) {
-            javax.swing.JOptionPane.showMessageDialog(this, "Nao foi possivel ler o arquivo: " + ex.getMessage());
+            JOptionPane.showMessageDialog(this, "Nao foi possivel preparar o envio: " + ex.getMessage());
+        }
+    }
+
+    // Bloqueia em accept() fora da EDT ate o destino conectar direto; so
+    // entao os bytes saem, numa conexao que nao e a do ServidorChat.
+    private void aguardarConexaoDireta(ServerSocket servidorArquivo, File arquivo, String destino) {
+        try (ServerSocket ss = servidorArquivo; Socket conexaoDireta = ss.accept()) {
+            Files.copy(arquivo.toPath(), conexaoDireta.getOutputStream());
+            SwingUtilities.invokeLater(() ->
+                    log("[arquivo] \"" + arquivo.getName() + "\" enviado diretamente para " + destino + "."));
+        } catch (IOException ex) {
+            SwingUtilities.invokeLater(() ->
+                    log("[arquivo] " + destino + " nao aceitou/conectou a tempo: " + ex.getMessage()));
         }
     }
 
