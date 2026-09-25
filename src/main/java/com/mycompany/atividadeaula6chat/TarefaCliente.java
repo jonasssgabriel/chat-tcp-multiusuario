@@ -49,9 +49,8 @@ public class TarefaCliente implements Runnable {
                         ServidorChat.enviarPrivada(msg);
                         saida.println(msg.paraLinha()); // eco pro remetente
                         break;
-                    case "ARQUIVO": // bonus: so repassa o convite, o arquivo viaja fora daqui
+                    case "ARQUIVO": // bonus: so repassa o convite pro destino, sem eco pro remetente
                         ServidorChat.enviarPrivada(msg);
-                        saida.println(msg.paraLinha());
                         break;
                     case "LISTAR":
                         Mensagem resp = new Mensagem("RESPOSTA", "servidor", apelido, null);
