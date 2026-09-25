@@ -3,21 +3,8 @@ package com.mycompany.atividadeaula6chat;
 import java.util.List;
 import com.google.gson.Gson;
 
-/**
- * PROTOCOLO do chat: define os tipos de mensagem trocados entre cliente e
- * servidor. Cada linha do socket (TCP, texto terminado em '\n') e um
- * Mensagem serializado em JSON pelo Gson, ex: {"tipo":"PRIVADA",...}.
- *
- * Tipos (campo "tipo"): BROADCAST, PRIVADA, LISTAR, SAIR, RESPOSTA, ERRO
- * e ARQUIVO (bonus). A 1a linha da conexao (o apelido) nao e um Mensagem,
- * e so texto cru (ver TarefaCliente).
- *
- * ARQUIVO (bonus, +1,0): o servidor so intermedia a CONEXAO (relay deste
- * convite com ip/porta), nunca o arquivo. Quem manda abre um ServerSocket
- * e avisa aqui o ip:porta; o arquivo trafega numa conexao TCP direta entre
- * os dois clientes, fora do ServidorChat (ver TelaChat.enviarArquivo /
- * receberOfertaArquivo).
- */
+// Protocolo do chat: cada linha do socket e um Mensagem serializado em JSON.
+// Tipos: BROADCAST, PRIVADA, LISTAR, SAIR, RESPOSTA, ERRO e ARQUIVO (bonus).
 public class Mensagem {
 
     String tipo;
@@ -26,7 +13,7 @@ public class Mensagem {
     String texto;
     List<String> lista;
 
-    // Campos do tipo ARQUIVO: dados do CONVITE (nunca o arquivo em si).
+    // campos do tipo ARQUIVO: dados do convite (nunca o arquivo em si)
     String nomeArquivo;
     long tamanhoArquivo;
     String ip;

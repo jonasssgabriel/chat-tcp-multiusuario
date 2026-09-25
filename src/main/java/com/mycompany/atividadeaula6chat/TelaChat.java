@@ -13,14 +13,6 @@ import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 
-/**
- * Tela (cliente) do chat TCP -- JFrame Form. Le mensagens numa Thread
- * separada (readLine() bloqueia) pra nao travar a digitacao, e usa
- * SwingUtilities.invokeLater pra atualizar a JTextArea a partir dela.
- * A Regiao Critica (lista de usuarios) fica no servidor, nao aqui.
- *
- * @author jonas
- */
 public class TelaChat extends javax.swing.JFrame {
 
     private Socket socket;
@@ -127,43 +119,101 @@ public class TelaChat extends javax.swing.JFrame {
         setLocationRelativeTo(null);
     }// </editor-fold>//GEN-END:initComponents
 
-    // ========================================================================
-    // EVENTOS DOS BOTOES (o NetBeans cria estes metodos com duplo clique)
-    // ========================================================================
-
+    // abre a conexao com o servidor e manda o apelido como primeira linha
     private void btnConectarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnConectarActionPerformed
-        conectar();
+        apelido = tfApelido.getText().trim();
+        if (apelido.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Digite um apelido.");
+            return;
+        }
+        try {
+            socket = new Socket("localhost", 9999);
+            saida = new PrintWriter(socket.getOutputStream(), true);
+            BufferedReader entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            saida.println(apelido);
+            new Thread(() -> receberMensagens(entrada)).start();
+            atualizarEstadoConectado(true);
+            log("Conectado como " + apelido + ". Use os botoes abaixo.");
+        } catch (IOException ex) {
+            JOptionPane.showMessageDialog(this, "Nao foi possivel conectar: " + ex.getMessage());
+        }
     }//GEN-LAST:event_btnConectarActionPerformed
 
+    // manda a mensagem digitada pra todo mundo conectado
     private void btnTodosActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnTodosActionPerformed
-        enviarTodos();
+        String texto = tfMensagem.getText().trim();
+        if (texto.isEmpty()) {
+            return;
+        }
+        saida.println(new Mensagem("BROADCAST", apelido, null, texto).paraLinha());
+        tfMensagem.setText("");
     }//GEN-LAST:event_btnTodosActionPerformed
 
+    // manda a mensagem so pro apelido preenchido em "destino"
     private void btnPrivadaActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnPrivadaActionPerformed
-        enviarPrivada();
+        String destino = tfDestino.getText().trim();
+        String texto = tfMensagem.getText().trim();
+        if (destino.isEmpty() || texto.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Preencha o destino e a mensagem.");
+            return;
+        }
+        saida.println(new Mensagem("PRIVADA", apelido, destino, texto).paraLinha());
+        tfMensagem.setText("");
     }//GEN-LAST:event_btnPrivadaActionPerformed
 
+    // pede pro servidor a lista de quem esta conectado agora
     private void btnListarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnListarActionPerformed
-        listar();
+        saida.println(new Mensagem("LISTAR", apelido, null, null).paraLinha());
     }//GEN-LAST:event_btnListarActionPerformed
 
+    // bonus: abre um ServerSocket, manda so o convite (ip/porta) e espera a conexao direta
     private void btnArquivoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnArquivoActionPerformed
-        enviarArquivo();
+        String destino = tfDestino.getText().trim();
+        if (destino.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Preencha o destino (apelido de quem vai receber).");
+            return;
+        }
+        JFileChooser seletor = new JFileChooser();
+        int escolha = seletor.showOpenDialog(this);
+        if (escolha != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        File arquivo = seletor.getSelectedFile();
+        try {
+            ServerSocket servidorArquivo = new ServerSocket(0);
+            servidorArquivo.setSoTimeout(30000);
+            String meuIp = socket.getLocalAddress().getHostAddress();
+            int minhaPorta = servidorArquivo.getLocalPort();
+
+            Mensagem convite = Mensagem.novaOfertaArquivo(apelido, destino, arquivo.getName(),
+                    arquivo.length(), meuIp, minhaPorta);
+            saida.println(convite.paraLinha());
+
+            log("Convite enviado para " + destino + ". Aguardando conexao direta para enviar \""
+                    + arquivo.getName() + "\"...");
+            new Thread(() -> aguardarConexaoDireta(servidorArquivo, arquivo, destino)).start();
+        } catch (IOException ex) {
+            JOptionPane.showMessageDialog(this, "Nao foi possivel preparar o envio: " + ex.getMessage());
+        }
     }//GEN-LAST:event_btnArquivoActionPerformed
 
+    // avisa o servidor que esta saindo e fecha a conexao
     private void btnSairActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnSairActionPerformed
-        sair();
+        try {
+            saida.println(new Mensagem("SAIR", apelido, null, null).paraLinha());
+            socket.close();
+        } catch (IOException ex) {
+        }
+        atualizarEstadoConectado(false);
+        log("Voce saiu do chat.");
     }//GEN-LAST:event_btnSairActionPerformed
 
+    // Enter no campo de mensagem = mesmo efeito do botao Enviar Todos
     private void tfMensagemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_tfMensagemActionPerformed
-        enviarTodos(); // Enter no campo de mensagem = enviar pra todos
+        btnTodosActionPerformed(evt);
     }//GEN-LAST:event_tfMensagemActionPerformed
 
-    // ========================================================================
-    // LOGICA DO CHAT (nao gerado pelo NetBeans -- escrito por nos)
-    // ========================================================================
-
-    // habilita/desabilita os controles de acordo com o estado da conexao
+    // liga/desliga os controles de acordo com o estado da conexao
     private void atualizarEstadoConectado(boolean conectado) {
         tfApelido.setEnabled(!conectado);
         btnConectar.setEnabled(!conectado);
@@ -180,47 +230,20 @@ public class TelaChat extends javax.swing.JFrame {
         taChat.append(texto + "\n");
     }
 
-    /** Abre o Socket TCP com o servidor e manda o apelido (1a linha da conexao). */
-    private void conectar() {
-        apelido = tfApelido.getText().trim();
-        if (apelido.isEmpty()) {
-            javax.swing.JOptionPane.showMessageDialog(this, "Digite um apelido.");
-            return;
-        }
-        try {
-            socket = new Socket("localhost", 9999);
-            saida = new PrintWriter(socket.getOutputStream(), true);
-            BufferedReader entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-
-            saida.println(apelido); // 1a linha da conexao = apelido (ver TarefaCliente)
-
-            new Thread(() -> receberMensagens(entrada)).start(); // nao travar a tela
-
-
-
-            atualizarEstadoConectado(true);
-            log("Conectado como " + apelido + ". Use os botoes abaixo.");
-        } catch (IOException ex) {
-            javax.swing.JOptionPane.showMessageDialog(this, "Nao foi possivel conectar: " + ex.getMessage());
-        }
-    }
-
-    /** Roda inteira dentro da THREAD DE LEITURA (nunca na thread da tela). */
+    // roda na thread de leitura, fica esperando mensagem por mensagem
     private void receberMensagens(BufferedReader entrada) {
         try {
             String linha;
             while ((linha = entrada.readLine()) != null) {
                 Mensagem msg = Mensagem.fromLinha(linha);
 
-                // ARQUIVO e so o convite; dialogo+download vao pra thread
-                // propria pra nao travar o recebimento de outras mensagens.
                 if ("ARQUIVO".equals(msg.tipo)) {
                     new Thread(() -> receberOfertaArquivo(msg)).start();
                     continue;
                 }
 
                 String texto = formatar(msg);
-                SwingUtilities.invokeLater(() -> log(texto)); // so a EDT mexe na JTextArea
+                SwingUtilities.invokeLater(() -> log(texto));
             }
         } catch (IOException ex) {
             SwingUtilities.invokeLater(() -> {
@@ -243,8 +266,7 @@ public class TelaChat extends javax.swing.JFrame {
         return msg.remetente + ": " + msg.texto;
     }
 
-    // Bonus (+1,0): confirma com o usuario e baixa por conexao DIRETA com
-    // quem enviou (fora do ServidorChat). Roda em thread propria.
+    // bonus: confirma com o usuario e baixa por conexao direta com quem enviou
     private void receberOfertaArquivo(Mensagem oferta) {
         int resposta = JOptionPane.showConfirmDialog(this,
                 oferta.remetente + " quer te enviar o arquivo \"" + oferta.nomeArquivo
@@ -254,7 +276,7 @@ public class TelaChat extends javax.swing.JFrame {
             SwingUtilities.invokeLater(() -> log("Voce recusou o arquivo de " + oferta.remetente + "."));
             return;
         }
-        try (Socket direto = new Socket(oferta.ip, oferta.porta)) { // conexao direta, fora do ServidorChat
+        try (Socket direto = new Socket(oferta.ip, oferta.porta)) {
             File pasta = new File("arquivos_recebidos");
             if (!pasta.exists()) {
                 pasta.mkdirs();
@@ -270,62 +292,7 @@ public class TelaChat extends javax.swing.JFrame {
         }
     }
 
-    /** Requisito: "Enviar mensagem para todos os usuarios conectados". */
-    private void enviarTodos() {
-        String texto = tfMensagem.getText().trim();
-        if (texto.isEmpty()) {
-            return;
-        }
-        saida.println(new Mensagem("BROADCAST", apelido, null, texto).paraLinha());
-        tfMensagem.setText("");
-    }
-
-    /** Requisito: "Enviar mensagem privada para um usuario especifico". */
-    private void enviarPrivada() {
-        String destino = tfDestino.getText().trim();
-        String texto = tfMensagem.getText().trim();
-        if (destino.isEmpty() || texto.isEmpty()) {
-            javax.swing.JOptionPane.showMessageDialog(this, "Preencha o destino e a mensagem.");
-            return;
-        }
-        saida.println(new Mensagem("PRIVADA", apelido, destino, texto).paraLinha());
-        tfMensagem.setText("");
-    }
-
-    // Bonus (+1,0): abre um ServerSocket proprio, manda so o convite
-    // (ip/porta/nome/tamanho) via ServidorChat, e espera a conexao direta.
-    private void enviarArquivo() {
-        String destino = tfDestino.getText().trim();
-        if (destino.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Preencha o destino (apelido de quem vai receber).");
-            return;
-        }
-        JFileChooser seletor = new JFileChooser();
-        int escolha = seletor.showOpenDialog(this);
-        if (escolha != JFileChooser.APPROVE_OPTION) {
-            return; // usuario cancelou
-        }
-        File arquivo = seletor.getSelectedFile();
-        try {
-            ServerSocket servidorArquivo = new ServerSocket(0); // 0 = porta livre escolhida pelo SO
-            servidorArquivo.setSoTimeout(30000); // desiste se ninguem conectar em 30s
-            String meuIp = socket.getLocalAddress().getHostAddress(); // ip usado na conexao com o chat
-            int minhaPorta = servidorArquivo.getLocalPort();
-
-            Mensagem convite = Mensagem.novaOfertaArquivo(apelido, destino, arquivo.getName(),
-                    arquivo.length(), meuIp, minhaPorta);
-            saida.println(convite.paraLinha()); // so o convite passa pelo servidor do chat
-
-            log("Convite enviado para " + destino + ". Aguardando conexao direta para enviar \""
-                    + arquivo.getName() + "\"...");
-            new Thread(() -> aguardarConexaoDireta(servidorArquivo, arquivo, destino)).start();
-        } catch (IOException ex) {
-            JOptionPane.showMessageDialog(this, "Nao foi possivel preparar o envio: " + ex.getMessage());
-        }
-    }
-
-    // Bloqueia em accept() fora da EDT ate o destino conectar direto; so
-    // entao os bytes saem, numa conexao que nao e a do ServidorChat.
+    // fica esperando o outro cliente conectar direto pra so entao mandar o arquivo
     private void aguardarConexaoDireta(ServerSocket servidorArquivo, File arquivo, String destino) {
         try (ServerSocket ss = servidorArquivo; Socket conexaoDireta = ss.accept()) {
             Files.copy(arquivo.toPath(), conexaoDireta.getOutputStream());
@@ -335,23 +302,6 @@ public class TelaChat extends javax.swing.JFrame {
             SwingUtilities.invokeLater(() ->
                     log("[arquivo] " + destino + " nao aceitou/conectou a tempo: " + ex.getMessage()));
         }
-    }
-
-    /** Requisito: "Ver a lista dos usuarios logados no momento". */
-    private void listar() {
-        saida.println(new Mensagem("LISTAR", apelido, null, null).paraLinha());
-    }
-
-    /** Requisito: "Sair do chat, avisando os demais usuarios". */
-    private void sair() {
-        try {
-            saida.println(new Mensagem("SAIR", apelido, null, null).paraLinha());
-            socket.close();
-        } catch (IOException ex) {
-            // ja estava fechando mesmo, pode ignorar
-        }
-        atualizarEstadoConectado(false);
-        log("Voce saiu do chat.");
     }
 
     /**

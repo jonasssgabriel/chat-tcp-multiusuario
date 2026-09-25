@@ -11,11 +11,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/**
- * Servidor central do chat TCP: ServerSocket + ThreadPool (uma TarefaCliente
- * por conexao) + mapa de usuarios conectados. O mapa e a Regiao Critica
- * (Aula 3) -- so acessado pelos metodos synchronized abaixo.
- */
+// Servidor central: ServerSocket + ThreadPool + mapa de usuarios conectados.
+// O mapa e a Regiao Critica, so acessada pelos metodos synchronized abaixo.
 public class ServidorChat {
 
     // Regiao Critica: NUNCA acessar "usuarios" fora de um metodo synchronized.
@@ -26,8 +23,7 @@ public class ServidorChat {
         ExecutorService pool = Executors.newFixedThreadPool(20);
         System.out.println("Servidor de chat rodando na porta 9999...");
 
-        // Servidor iterativo "infinito": nunca para de aceitar conexoes novas.
-        // A saida ou queda de UM cliente (TarefaCliente) nao afeta este laco.
+        // nunca para de aceitar conexoes; a queda de um cliente nao afeta o laco
         while (true) {
             Socket cliente = servidor.accept();          // bloqueia ate alguem conectar
             pool.execute(new TarefaCliente(cliente));    // entrega pro pool e volta direto pro accept()
@@ -36,9 +32,7 @@ public class ServidorChat {
 
     // ---- Os metodos abaixo sao a unica porta de entrada pra Regiao Critica ----
 
-    // Checa e registra o apelido na MESMA chamada synchronized (check-then-act
-    // atomico) -- em dois metodos separados, duas threads poderiam passar
-    // pela checagem antes de qualquer uma registrar.
+    // checa e registra na mesma chamada synchronized, pra evitar corrida
     static synchronized boolean registrarSeLivre(String apelido, PrintWriter saida) {
         if (usuarios.containsKey(apelido)) {
             return false;
@@ -52,8 +46,7 @@ public class ServidorChat {
     }
 
     static synchronized List<String> listarUsuarios() {
-        // devolve uma COPIA da lista de apelidos: quem chamou pode mexer
-        // nela a vontade sem risco de interferir no mapa original.
+        // devolve uma copia, pra nao expor o mapa original fora do lock
         return new ArrayList<>(usuarios.keySet());
     }
 
@@ -63,16 +56,11 @@ public class ServidorChat {
         }
     }
 
-    // Repassa a mensagem so pro apelido em msg.destino. Usada pela PRIVADA e
-    // pelo convite ARQUIVO (bonus) -- neste ultimo caso so o convite (ip e
-    // porta) passa por aqui, nunca o arquivo: essa e a "intermediacao da
-    // conexao" que o enunciado pede, sem o servidor tocar no arquivo.
+    // repassa so pro apelido em msg.destino (usada por PRIVADA e ARQUIVO)
     static synchronized void enviarPrivada(Mensagem msg) {
         PrintWriter saida = usuarios.get(msg.destino);
         if (saida != null) {
             saida.println(msg.paraLinha());
         }
-        // se saida == null, o destinatario nao existe/desconectou: por
-        // simplicidade so ignoramos (dava pra responder ERRO pro remetente).
     }
 }

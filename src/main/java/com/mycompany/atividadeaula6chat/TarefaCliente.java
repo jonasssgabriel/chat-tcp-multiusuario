@@ -6,12 +6,8 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 
-/**
- * Tarefa (Runnable) que o ThreadPool do ServidorChat executa para CADA
- * cliente conectado: le o apelido, registra, e fica em loop lendo mensagens
- * ate o cliente sair ou cair. Uma thread por cliente = servidor atende
- * varios ao mesmo tempo sem travar esperando um digitar.
- */
+// Tarefa que o pool executa por cliente conectado: registra o apelido e
+// fica em loop lendo mensagens ate ele sair ou a conexao cair.
 public class TarefaCliente implements Runnable {
 
     private final Socket socket;
@@ -47,16 +43,13 @@ public class TarefaCliente implements Runnable {
 
                 switch (msg.tipo) {
                     case "BROADCAST":
-                        // "Enviar mensagem para todos os usuarios conectados"
                         ServidorChat.broadcast(msg);
                         break;
                     case "PRIVADA":
                         ServidorChat.enviarPrivada(msg);
-                        saida.println(msg.paraLinha()); // eco pro remetente ver a propria mensagem
+                        saida.println(msg.paraLinha()); // eco pro remetente
                         break;
-                    case "ARQUIVO":
-                        // Bonus: so repassa o CONVITE (ip/porta); o arquivo
-                        // em si viaja direto entre os clientes, fora daqui.
+                    case "ARQUIVO": // bonus: so repassa o convite, o arquivo viaja fora daqui
                         ServidorChat.enviarPrivada(msg);
                         saida.println(msg.paraLinha());
                         break;
@@ -75,8 +68,7 @@ public class TarefaCliente implements Runnable {
         } catch (IOException e) {
             // Cliente caiu sem avisar -- so afeta esta thread, nao o servidor.
         } finally {
-            // So remove/avisa se chegou a registrar (evita "saida fantasma"
-            // de um apelido que foi rejeitado).
+            // so remove/avisa se chegou a registrar de verdade
             if (registrado) {
                 ServidorChat.remover(apelido);
                 ServidorChat.broadcast(new Mensagem("BROADCAST", "servidor", null, apelido + " saiu do chat"));
